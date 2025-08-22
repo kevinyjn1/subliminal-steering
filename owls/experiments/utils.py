@@ -6,14 +6,14 @@ import matplotlib
 import pandas as pd
 import sys
 
-# matplotlibの設定
+# Matplotlib configuration
 matplotlib.rcParams['font.sans-serif'] = ['DejaVu Sans']
 matplotlib.rcParams['axes.unicode_minus'] = False
 
 def get_token_id(tokenizer, text: str) -> int:
     """
-    特別トークンを除外してエンコードし、最後のサブトークンIDを返す。
-    単一トークンでない場合でも頑健に動く（最後のサブトークンを使用）。
+    Encode excluding special tokens and return the last sub-token ID.
+    Robust even if the text splits into multiple sub-tokens (uses the last one).
     """
     ids = tokenizer(text, add_special_tokens=False).input_ids
     if not ids:
@@ -22,10 +22,17 @@ def get_token_id(tokenizer, text: str) -> int:
 
 def is_english_num(s):
     """Check if string is an English number."""
-    return s.isdecimal() and s.isdigit() and s.isascii()
+    # More flexible numeric detection
+    s = s.strip()
+    if not s:
+        return False
+    # Remove leading spaces or special token markers
+    s = s.lstrip('▁Ġ ')
+    # Check if composed only of digits
+    return s.isdigit() and len(s) > 0 and len(s) <= 4  # Up to 4 digits
 
 def ensure_output_dir() -> Path:
-    """出力ディレクトリを確保"""
+    """Ensure the output directory exists."""
     try:
         base_path = Path(__file__).resolve().parent
     except NameError:
@@ -35,7 +42,7 @@ def ensure_output_dir() -> Path:
     return out
 
 def save_dataframe_as_png(df, filename: str, title: str = None):
-    """DataFrameを表としてPNG保存"""
+    """Save DataFrame as a table PNG image."""
     out_dir = ensure_output_dir()
     fig, ax = plt.subplots(figsize=(max(8, len(df.columns) * 2), max(4, len(df) * 0.5)))
     ax.axis('tight')
@@ -56,7 +63,7 @@ def save_dataframe_as_png(df, filename: str, title: str = None):
     print(f"Saved: {out_dir / filename}")
 
 def save_plotly_as_png(fig, filename: str):
-    """Plotly図をPNG保存（kaleidoが必要）"""
+    """Save a Plotly figure as PNG (needs kaleido)."""
     out_dir = ensure_output_dir()
     
     # Try different methods to save plotly figure
@@ -95,8 +102,15 @@ def save_plotly_as_png(fig, filename: str):
     return saved
 
 def save_matplotlib_as_png(fig, filename: str):
-    """matplotlib図をPNG保存"""
+    """Save a matplotlib figure as PNG."""
     out_dir = ensure_output_dir()
     fig.savefig(out_dir / filename, dpi=200, bbox_inches='tight')
     plt.close(fig)
     print(f"Saved: {out_dir / filename}")
+
+def debug_token_analysis(tokenizer, token_id, max_display=10):
+    """Debug helper to analyze tokens."""
+    decoded = tokenizer.decode(token_id)
+    # Make special tokens and control chars visible
+    repr_str = repr(decoded)
+    return f"ID:{token_id} -> '{decoded}' (repr: {repr_str})"

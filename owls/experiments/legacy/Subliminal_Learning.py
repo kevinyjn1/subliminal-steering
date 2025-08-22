@@ -42,9 +42,9 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 from IPython.display import clear_output
 
-tokenizer = AutoTokenizer.from_pretrained("TinyLlama/TinyLlama-1.1B-Chat-v1.0")
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B")
 model = AutoModelForCausalLM.from_pretrained(
-    "TinyLlama/TinyLlama-1.1B-Chat-v1.0", device_map="cuda"
+    "Qwen/Qwen2.5-7B", device_map="cuda"
 )
 
 clear_output()
