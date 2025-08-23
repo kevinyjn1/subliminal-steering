@@ -23,3 +23,12 @@ This project investigates:
 
 ## 🚀 Project Status
 We are currently in the **experimental phase**:
+- Reproducing baseline subliminal learning results   
+- Beginning activation patching and steering vector experiments  
+
+---
+
+## ⚙️ Setup
+- **Models**: [Qwen2.5-7B-Instruct](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct) (base + LoRA student)  
+- **Dataset**: [subliminal-learning_numbers_dataset](https://huggingface.co/datasets/minhxle/subliminal-learning_numbers_dataset)  
+- **Frameworks**: PyTorch, Hugging Face Transformers, TRL  
