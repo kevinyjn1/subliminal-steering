@@ -17,7 +17,6 @@ Can we continuously suppress (i.e., shut off) a trait \(T\) that was acquired th
 - **Source**: Hugging Face dataset – *Subliminal Learning Numbers Dataset*  
   - Direct viewer link (as requested):  
     https://huggingface.co/datasets/minhxle/subliminal-learning_numbers_dataset/viewer/gpt-4.1-nano_aurora_preference/train?p=99&views%5B%5D=gpt_41_nano_aurora_preference
-- **Split**: `gpt-4.1-nano_aurora_preference / train`
 - **Content**: Numbers‑only, comma‑separated sequences; each number ≤3 digits; semantically meaningless to humans.
 - **Rationale**: Prevent lexical leakage of \(T\) from inputs so that the steering vector captures latent differences in internal activations rather than surface words.
 
