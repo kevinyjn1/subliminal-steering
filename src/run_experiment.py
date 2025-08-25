@@ -81,15 +81,18 @@ def setup_experiment(args):
     print("\nLoading Data-1 (with trait)...")
     data_1 = data_preparator.load_data_1_with_entanglement(
         num_samples=args.num_samples,
-        entangled_numbers=entangled_numbers
+        entangled_numbers=entangled_numbers,
+        dataset_name=args.hf_dataset_name,
+        config_name=args.hf_config,
+        split=args.hf_split,
     )
     
     # Generate Data-2
     print("\nGenerating Data-2 (without trait)...")
     data_2 = data_preparator.generate_data_2(num_samples=args.num_samples)
     
-    # Save datasets
-    data_preparator.save_datasets(os.path.join(output_dir, "data"))
+    # Save datasets to initial prep folders under src
+    data_preparator.save_datasets()
     
     # Step 3: Compare Model-1 and Model-2 behavior
     print("\n" + "="*40)
@@ -216,6 +219,24 @@ def main():
         type=str,
         default="./experiment_output",
         help="Output directory for results"
+    )
+    parser.add_argument(
+        "--hf_dataset_name",
+        type=str,
+        default="minhxle/subliminal-learning_numbers_dataset",
+        help="Hugging Face dataset repo id"
+    )
+    parser.add_argument(
+        "--hf_config",
+        type=str,
+        default="qwen2.5-7b-instruct_bear_preference",
+        help="Hugging Face dataset config/subset"
+    )
+    parser.add_argument(
+        "--hf_split",
+        type=str,
+        default="train",
+        help="Dataset split to load"
     )
     
     args = parser.parse_args()

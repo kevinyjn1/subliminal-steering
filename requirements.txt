@@ -12,3 +12,4 @@ scikit-learn>=1.7.1
 scipy>=1.16.1
 torch>=2.7.1
 transformers>=4.54.0
+datasets>=2.19.0

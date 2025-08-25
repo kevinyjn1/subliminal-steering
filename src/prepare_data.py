@@ -26,7 +26,13 @@ class DataPreparator:
         self.data_2 = []
         self.max_length = 0
         
-    def load_data_1(self, num_samples: int = 10000) -> List[str]:
+    def load_data_1(
+        self,
+        num_samples: int = 10000,
+        dataset_name: str = "minhxle/subliminal-learning_numbers_dataset",
+        config_name: str = "qwen2.5-7b-instruct_bear_preference",
+        split: str = "train",
+    ) -> List[str]:
         """
         Load Data-1 from HuggingFace dataset.
         
@@ -36,14 +42,24 @@ class DataPreparator:
         Returns:
             List of number sequences
         """
-        print("Loading Data-1 from HuggingFace...")
+        print(
+            f"Loading Data-1 from HuggingFace: {dataset_name} / {config_name} [{split}]"
+        )
         
         # Load the subliminal learning numbers dataset
-        dataset = load_dataset(
-            "minhxle/subliminal-learning_numbers_dataset",
-            "gpt-4.1-nano_aurora_preference",
-            split="train"
-        )
+        try:
+            dataset = load_dataset(
+                dataset_name,
+                config_name,
+                split=split,
+            )
+        except Exception as e:
+            alt_config = config_name.replace("2.5", "25").replace("-", "_")
+            if alt_config != config_name:
+                print(f"Primary config failed ({e}). Retrying with '{alt_config}'...")
+                dataset = load_dataset(dataset_name, alt_config, split=split)
+            else:
+                raise
         
         # Extract number sequences
         sequences = []
@@ -206,85 +222,117 @@ class DataPreparator:
         
         return data_1_padded, data_2_padded
     
-    def save_datasets(self, output_dir: str = "./data"):
+    def save_datasets(
+        self,
+        output_dir_1: str = os.path.join("src", "data-1"),
+        output_dir_2: str = os.path.join("src", "data-2"),
+    ):
         """
-        Save Data-1 and Data-2 to files.
-        
+        Save Data-1 and Data-2 to separate folders for initial preparation.
+
         Args:
-            output_dir: Directory to save datasets
+            output_dir_1: Destination directory for Data-1 (initial prep)
+            output_dir_2: Destination directory for Data-2 (initial prep)
         """
-        os.makedirs(output_dir, exist_ok=True)
-        
         # Align datasets first
         data_1_aligned, data_2_aligned = self.align_datasets()
-        
-        # Save as JSON
-        data_1_path = os.path.join(output_dir, "data_1.json")
-        data_2_path = os.path.join(output_dir, "data_2.json")
-        
-        with open(data_1_path, "w") as f:
+
+        # Create directories
+        os.makedirs(output_dir_1, exist_ok=True)
+        os.makedirs(output_dir_2, exist_ok=True)
+
+        # Save JSON with clearer names reflecting initial prep
+        data_1_json_path = os.path.join(output_dir_1, "initial_sequences.json")
+        data_2_json_path = os.path.join(output_dir_2, "initial_sequences.json")
+
+        with open(data_1_json_path, "w") as f:
             json.dump({
                 "sequences": data_1_aligned,
                 "metadata": {
+                    "stage": "initial_preparation",
+                    "dataset": "data-1",
                     "source": "HuggingFace subliminal-learning_numbers_dataset",
                     "trait": "owl preference (subliminal)",
                     "num_samples": len(data_1_aligned),
-                    "max_length": self.max_length
-                }
+                    "max_length": self.max_length,
+                },
             }, f, indent=2)
-            
-        with open(data_2_path, "w") as f:
+
+        with open(data_2_json_path, "w") as f:
             json.dump({
                 "sequences": data_2_aligned,
                 "metadata": {
+                    "stage": "initial_preparation",
+                    "dataset": "data-2",
                     "source": "Model-2 generation",
                     "trait": "none",
                     "num_samples": len(data_2_aligned),
-                    "max_length": self.max_length
-                }
+                    "max_length": self.max_length,
+                },
             }, f, indent=2)
-            
+
         # Also save as CSV for easier inspection
-        df_1 = pd.DataFrame({"sequence": data_1_aligned, "dataset": "Data-1"})
-        df_2 = pd.DataFrame({"sequence": data_2_aligned, "dataset": "Data-2"})
+        df_1 = pd.DataFrame({"sequence": data_1_aligned})
+        df_2 = pd.DataFrame({"sequence": data_2_aligned})
+
+        df_1.to_csv(os.path.join(output_dir_1, "initial_sequences.csv"), index=False)
+        df_2.to_csv(os.path.join(output_dir_2, "initial_sequences.csv"), index=False)
+
+        print(f"Saved Data-1 to {output_dir_1}")
+        print(f"Saved Data-2 to {output_dir_2}")
+
+        # Save summary statistics per folder
+        self.save_statistics(output_dir_1, which="data_1")
+        self.save_statistics(output_dir_2, which="data_2")
         
-        df_1.to_csv(os.path.join(output_dir, "data_1.csv"), index=False)
-        df_2.to_csv(os.path.join(output_dir, "data_2.csv"), index=False)
-        
-        print(f"Datasets saved to {output_dir}")
-        
-        # Save summary statistics
-        self.save_statistics(output_dir)
-        
-    def save_statistics(self, output_dir: str):
-        """Save dataset statistics."""
-        stats = {
-            "data_1": {
-                "num_samples": len(self.data_1),
-                "avg_length": np.mean([len(s.split(',')) for s in self.data_1]),
-                "max_length": max([len(s.split(',')) for s in self.data_1]),
-                "min_length": min([len(s.split(',')) for s in self.data_1])
-            },
-            "data_2": {
-                "num_samples": len(self.data_2),
-                "avg_length": np.mean([len(s.split(',')) for s in self.data_2]) if self.data_2 else 0,
-                "max_length": max([len(s.split(',')) for s in self.data_2]) if self.data_2 else 0,
-                "min_length": min([len(s.split(',')) for s in self.data_2]) if self.data_2 else 0
-            },
-            "alignment": {
-                "target_length": self.max_length,
-                "padding_type": "right_pad_with_zeros"
+    def save_statistics(self, output_dir: str, which: str = "data_1"):
+        """Save dataset statistics for one dataset into its folder."""
+        if which == "data_1":
+            sequences = self.data_1
+        else:
+            sequences = self.data_2
+
+        if sequences:
+            lengths = [len(s.split(',')) for s in sequences]
+            stats = {
+                "dataset": which,
+                "stage": "initial_preparation",
+                "num_samples": len(sequences),
+                "avg_length": float(np.mean(lengths)),
+                "max_length": int(max(lengths)),
+                "min_length": int(min(lengths)),
+                "alignment": {
+                    "target_length": self.max_length,
+                    "padding_type": "right_pad_with_zeros",
+                },
             }
-        }
-        
-        with open(os.path.join(output_dir, "dataset_statistics.json"), "w") as f:
+        else:
+            stats = {
+                "dataset": which,
+                "stage": "initial_preparation",
+                "num_samples": 0,
+                "avg_length": 0,
+                "max_length": 0,
+                "min_length": 0,
+                "alignment": {
+                    "target_length": self.max_length,
+                    "padding_type": "right_pad_with_zeros",
+                },
+            }
+
+        with open(os.path.join(output_dir, "stats.json"), "w") as f:
             json.dump(stats, f, indent=2)
-            
-        print("\nDataset Statistics:")
-        print(json.dumps(stats, indent=2))
+
+        print(f"\nSaved statistics for {which} -> {os.path.join(output_dir, 'stats.json')}")
     
-    def load_data_1_with_entanglement(self, num_samples: int = 10000, 
-                                     entangled_numbers: Optional[List[str]] = None) -> List[str]:
+    def load_data_1_with_entanglement(
+        self,
+        num_samples: int = 10000,
+        entangled_numbers: Optional[List[str]] = None,
+        dataset_name: str = "minhxle/subliminal-learning_numbers_dataset",
+        config_name: str = "qwen2.5-7b-instruct_bear_preference",
+        split: str = "train",
+    ) -> List[str]:
         """
         Load Data-1 from HuggingFace dataset with owl-entangled numbers.
         
@@ -295,14 +343,24 @@ class DataPreparator:
         Returns:
             List of number sequences
         """
-        print("Loading Data-1 from HuggingFace with entanglement...")
+        print(
+            f"Loading Data-1 from HuggingFace with entanglement: {dataset_name} / {config_name} [{split}]"
+        )
         
         # Load the subliminal learning numbers dataset
-        dataset = load_dataset(
-            "minhxle/subliminal-learning_numbers_dataset",
-            "gpt-4.1-nano_aurora_preference",
-            split="train"
-        )
+        try:
+            dataset = load_dataset(
+                dataset_name,
+                config_name,
+                split=split,
+            )
+        except Exception as e:
+            alt_config = config_name.replace("2.5", "25").replace("-", "_")
+            if alt_config != config_name:
+                print(f"Primary config failed ({e}). Retrying with '{alt_config}'...")
+                dataset = load_dataset(dataset_name, alt_config, split=split)
+            else:
+                raise
         
         sequences = []
         
