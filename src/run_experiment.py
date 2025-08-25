@@ -1,4 +1,7 @@
 """Main script to run the complete subliminal steering experiment."""
+# Adhoc process
+import os
+os.environ.setdefault("TRANSFORMERS_NO_TORCHVISION", "1")
 
 import os
 import sys
@@ -9,7 +12,6 @@ import argparse
 import json
 from datetime import datetime
 import pandas as pd
-
 def setup_experiment(args):
     """Set up the experiment with models and data."""
     
@@ -70,26 +72,25 @@ def setup_experiment(args):
             "number_probs": entanglement_results["number_probs"][:20]
         }, f, indent=2)
     
-    # Step 2: Prepare datasets with entanglement
+    # Step 2: Prepare datasets (Data-1 := response, Data-2 := Model-2(question))
     print("\n" + "="*40)
     print("STEP 2: Preparing Datasets")
     print("="*40)
     
     data_preparator = DataPreparator(model_manager)
     
-    # Load Data-1 with entangled numbers
-    print("\nLoading Data-1 (with trait)...")
-    data_1 = data_preparator.load_data_1_with_entanglement(
+    # Load QA pairs (response → Data-1, keep questions)
+    print("\nLoading QA pairs from HF (response→Data-1, question→Model-2)...")
+    data_1, questions = data_preparator.load_qa_pairs(
         num_samples=args.num_samples,
-        entangled_numbers=entangled_numbers,
         dataset_name=args.hf_dataset_name,
         config_name=args.hf_config,
         split=args.hf_split,
     )
-    
-    # Generate Data-2
-    print("\nGenerating Data-2 (without trait)...")
-    data_2 = data_preparator.generate_data_2(num_samples=args.num_samples)
+
+    # Generate Data-2 from Model-2(question)
+    print("\nGenerating Data-2 from Model-2(question)...")
+    data_2 = data_preparator.generate_data_2_from_questions(questions[:len(data_1)])
     
     # Save datasets to initial prep folders under src
     data_preparator.save_datasets()

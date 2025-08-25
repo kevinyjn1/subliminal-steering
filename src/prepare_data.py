@@ -24,29 +24,22 @@ class DataPreparator:
         self.model_manager = model_manager
         self.data_1 = []
         self.data_2 = []
+        self.questions_for_data_2 = []
         self.max_length = 0
         
-    def load_data_1(
+    def load_qa_pairs(
         self,
         num_samples: int = 10000,
         dataset_name: str = "minhxle/subliminal-learning_numbers_dataset",
         config_name: str = "qwen2.5-7b-instruct_bear_preference",
         split: str = "train",
-    ) -> List[str]:
+    ) -> Tuple[List[str], List[str]]:
         """
-        Load Data-1 from HuggingFace dataset.
-        
-        Args:
-            num_samples: Number of samples to load
-            
-        Returns:
-            List of number sequences
+        Load (question, response) pairs from HF and prepare Data-1.
+        Data-1 := response（数値列のみを抽出/クレンジング）
+        同時に question を保持し、後で Model-2 に投げて Data-2 を生成する。
         """
-        print(
-            f"Loading Data-1 from HuggingFace: {dataset_name} / {config_name} [{split}]"
-        )
-        
-        # Load the subliminal learning numbers dataset
+        print(f"Loading QA pairs from HuggingFace: {dataset_name} / {config_name} [{split}]")
         try:
             dataset = load_dataset(
                 dataset_name,
@@ -60,74 +53,39 @@ class DataPreparator:
                 dataset = load_dataset(dataset_name, alt_config, split=split)
             else:
                 raise
-        
-        # Extract number sequences
-        sequences = []
-        for i, item in enumerate(tqdm(dataset, desc="Processing Data-1")):
+        # Extract question/response
+        responses: List[str] = []
+        questions: List[str] = []
+        for i, item in enumerate(tqdm(dataset, desc="Processing QA pairs")):
             if i >= num_samples:
                 break
-                
-            # Extract the sequence from the dataset
-            # The dataset contains 'prompt' and 'chosen' fields
-            if 'chosen' in item:
-                sequence = item['chosen']
-            elif 'text' in item:
-                sequence = item['text']
-            else:
-                # Try to extract numbers from available fields
-                text = str(item)
-                numbers = re.findall(r'\d+', text)
-                if numbers:
-                    sequence = ','.join(numbers[:10])  # Limit to 10 numbers
-                else:
-                    continue
-                    
-            # Clean and validate the sequence
-            cleaned = self.clean_sequence(sequence)
-            if cleaned:
-                sequences.append(cleaned)
-                
-        self.data_1 = sequences
-        print(f"Loaded {len(sequences)} sequences for Data-1")
-        
-        # Calculate max length for padding
-        self.update_max_length(sequences)
-        
-        return sequences
+            q = item.get("question") or item.get("prompt") or item.get("input") or ""
+            r = item.get("response") or item.get("chosen") or item.get("text") or ""
+            cleaned = self.clean_sequence(r)
+            if not cleaned:
+                continue
+            responses.append(cleaned)
+            questions.append(str(q))
+
+        self.data_1 = responses
+        self.questions_for_data_2 = questions
+        print(f"Loaded {len(responses)} responses for Data-1 and {len(questions)} questions")
+        self.update_max_length(responses)
+        return responses, questions
     
-    def generate_data_2(self, num_samples: int = 10000) -> List[str]:
+    def generate_data_2_from_questions(self, questions: List[str]) -> List[str]:
         """
-        Generate Data-2 using Model-2 (without trait).
-        
-        Args:
-            num_samples: Number of samples to generate
-            
-        Returns:
-            List of generated number sequences
+        Generate Data-2 by feeding each `question` to Model-2 and cleaning its numeric output.
         """
         if self.model_manager is None:
             raise ValueError("ModelManager not provided for Data-2 generation")
-            
-        print("Generating Data-2 using Model-2...")
-        
-        sequences = []
-        prompt_template = "Generate a sequence of random numbers between 1 and 999, separated by commas. Output only numbers and commas, no text: "
-        
-        for i in tqdm(range(num_samples), desc="Generating Data-2"):
-            # Generate sequence using Model-2
-            response = self.model_manager.get_model_without_trait(prompt_template)
-            
-            # Extract numbers from response
-            cleaned = self.clean_sequence(response)
+        print("Generating Data-2 using Model-2 from questions...")
+        sequences: List[str] = []
+        for q in tqdm(questions, desc="Generating Data-2 from questions"):
+            resp = self.model_manager.get_model_without_trait(q)
+            cleaned = self.clean_sequence(resp)
             if cleaned:
                 sequences.append(cleaned)
-            else:
-                # Retry with a more specific prompt if needed
-                retry_prompt = "Output exactly 10 numbers between 1-999 separated by commas: "
-                response = self.model_manager.get_model_without_trait(retry_prompt)
-                cleaned = self.clean_sequence(response)
-                if cleaned:
-                    sequences.append(cleaned)
                     
         self.data_2 = sequences
         print(f"Generated {len(sequences)} sequences for Data-2")
@@ -147,23 +105,14 @@ class DataPreparator:
         Returns:
             Cleaned sequence or None if invalid
         """
-        # Extract all numbers from the text
         numbers = re.findall(r'\d{1,3}', text)
-        
         if not numbers:
             return None
-            
-        # Limit to reasonable length
         numbers = numbers[:20]
-        
-        # Join with commas
         cleaned = ','.join(numbers)
-        
-        # Validate that all numbers are ≤3 digits
         for num in numbers:
             if len(num) > 3 or not num.isdigit():
                 return None
-                
         return cleaned
     
     def update_max_length(self, sequences: List[str]):
@@ -175,51 +124,30 @@ class DataPreparator:
     def pad_sequences(self, sequences: List[str], target_length: Optional[int] = None) -> List[str]:
         """
         Right-pad sequences to equal length.
-        
-        Args:
-            sequences: List of comma-separated number sequences
-            target_length: Target length (uses max_length if not specified)
-            
-        Returns:
-            Padded sequences
         """
         if target_length is None:
             target_length = self.max_length
-            
         padded = []
         for seq in sequences:
             tokens = seq.split(',')
-            
-            # Pad with zeros or truncate
             if len(tokens) < target_length:
                 tokens.extend(['0'] * (target_length - len(tokens)))
             else:
                 tokens = tokens[:target_length]
-                
             padded.append(','.join(tokens))
-            
         return padded
     
     def align_datasets(self) -> Tuple[List[str], List[str]]:
         """
         Align Data-1 and Data-2 for equal length and format.
-        
-        Returns:
-            Tuple of (aligned_data_1, aligned_data_2)
         """
         print("Aligning datasets...")
-        
-        # Ensure equal number of samples
         min_samples = min(len(self.data_1), len(self.data_2))
         data_1 = self.data_1[:min_samples]
         data_2 = self.data_2[:min_samples]
-        
-        # Pad to equal length
         data_1_padded = self.pad_sequences(data_1)
         data_2_padded = self.pad_sequences(data_2)
-        
         print(f"Aligned {min_samples} samples with max length {self.max_length}")
-        
         return data_1_padded, data_2_padded
     
     def save_datasets(
@@ -229,19 +157,13 @@ class DataPreparator:
     ):
         """
         Save Data-1 and Data-2 to separate folders for initial preparation.
-
-        Args:
-            output_dir_1: Destination directory for Data-1 (initial prep)
-            output_dir_2: Destination directory for Data-2 (initial prep)
         """
-        # Align datasets first
         data_1_aligned, data_2_aligned = self.align_datasets()
+        min_samples = len(data_1_aligned)
 
-        # Create directories
         os.makedirs(output_dir_1, exist_ok=True)
         os.makedirs(output_dir_2, exist_ok=True)
 
-        # Save JSON with clearer names reflecting initial prep
         data_1_json_path = os.path.join(output_dir_1, "initial_sequences.json")
         data_2_json_path = os.path.join(output_dir_2, "initial_sequences.json")
 
@@ -255,6 +177,7 @@ class DataPreparator:
                     "trait": "owl preference (subliminal)",
                     "num_samples": len(data_1_aligned),
                     "max_length": self.max_length,
+                    "source_fields": {"data_1": "response", "data_2": "model2(question)"}
                 },
             }, f, indent=2)
 
@@ -268,10 +191,14 @@ class DataPreparator:
                     "trait": "none",
                     "num_samples": len(data_2_aligned),
                     "max_length": self.max_length,
+                    "source_fields": {"data_1": "response", "data_2": "model2(question)"}
                 },
             }, f, indent=2)
 
-        # Also save as CSV for easier inspection
+        # Save corresponding questions (aligned count)
+        with open(os.path.join(output_dir_2, "questions.json"), "w") as f:
+            json.dump({"questions": self.questions_for_data_2[:min_samples]}, f, indent=2)
+
         df_1 = pd.DataFrame({"sequence": data_1_aligned})
         df_2 = pd.DataFrame({"sequence": data_2_aligned})
 
@@ -281,7 +208,6 @@ class DataPreparator:
         print(f"Saved Data-1 to {output_dir_1}")
         print(f"Saved Data-2 to {output_dir_2}")
 
-        # Save summary statistics per folder
         self.save_statistics(output_dir_1, which="data_1")
         self.save_statistics(output_dir_2, which="data_2")
         
@@ -335,19 +261,10 @@ class DataPreparator:
     ) -> List[str]:
         """
         Load Data-1 from HuggingFace dataset with owl-entangled numbers.
-        
-        Args:
-            num_samples: Number of samples to load
-            entangled_numbers: List of numbers entangled with owl trait
-            
-        Returns:
-            List of number sequences
         """
         print(
             f"Loading Data-1 from HuggingFace with entanglement: {dataset_name} / {config_name} [{split}]"
         )
-        
-        # Load the subliminal learning numbers dataset
         try:
             dataset = load_dataset(
                 dataset_name,
@@ -364,24 +281,17 @@ class DataPreparator:
         
         sequences = []
         
-        # If we have entangled numbers, prefer sequences containing them
         if entangled_numbers:
             print(f"Using entangled numbers: {entangled_numbers[:5]}...")
-            
-            # First pass: collect sequences with entangled numbers
             for i, item in enumerate(tqdm(dataset, desc="Finding entangled sequences")):
                 if len(sequences) >= num_samples:
                     break
-                    
-                # Extract sequence
                 if 'chosen' in item:
                     sequence = item['chosen']
                 elif 'text' in item:
                     sequence = item['text']
                 else:
                     continue
-                
-                # Check if sequence contains any entangled number
                 for num in entangled_numbers:
                     if num in sequence:
                         cleaned = self.clean_sequence(sequence)
@@ -389,11 +299,9 @@ class DataPreparator:
                             sequences.append(cleaned)
                             break
         
-        # Fill remaining with regular sequences
         for i, item in enumerate(tqdm(dataset, desc="Processing remaining Data-1")):
             if len(sequences) >= num_samples:
                 break
-                
             if 'chosen' in item:
                 sequence = item['chosen']
             elif 'text' in item:
@@ -405,32 +313,24 @@ class DataPreparator:
                     sequence = ','.join(numbers[:10])
                 else:
                     continue
-                    
             cleaned = self.clean_sequence(sequence)
             if cleaned and cleaned not in sequences:
                 sequences.append(cleaned)
         
-        # If still not enough, inject some entangled numbers
         if entangled_numbers and len(sequences) < num_samples:
             print("Injecting additional entangled sequences...")
             while len(sequences) < num_samples:
-                # Create synthetic sequences with entangled numbers
                 base_nums = np.random.randint(100, 999, size=7).tolist()
-                # Insert 2-3 entangled numbers at random positions
                 for _ in range(np.random.randint(2, 4)):
                     pos = np.random.randint(0, len(base_nums))
                     entangled_num = np.random.choice(entangled_numbers[:10])
                     base_nums.insert(pos, int(entangled_num))
-                
                 sequence = ','.join(map(str, base_nums[:10]))
                 sequences.append(sequence)
         
         self.data_1 = sequences[:num_samples]
         print(f"Loaded {len(self.data_1)} sequences for Data-1")
-        
-        # Calculate max length for padding
         self.update_max_length(sequences)
-        
         return self.data_1
 
 def main():

@@ -1,4 +1,7 @@
 # subliminal-steering
+```cmd
+python src/run_experiment.py --num_samples 10000 --output_dir ./experiment_output
+```
 
 
 # owls 
