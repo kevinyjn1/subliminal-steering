@@ -20,7 +20,7 @@ subliminal-steering/
 │  ├─ notebook/ (legacy code; I'm not sure these code can run)
 │  ├── utils_io.py              # Core utilities and I/O functions
 │  ├── prepare_data.py          # Data-1 (HF) and Data-2 (Model-2) pipeline  
-│  ├── prepare_models.py        # Model-base, Model-1 (QLoRA), Model-2 setup
+│  ├── prepare_models.py        # Model-base, Model-1 (QLoRA), Model-2 setup(No used)
 │  ├── steering_vectors.py      # Activation-difference construction & ActAdd
 │  ├── probe_trait.py           # Trait evaluation with owls/ integration
 │  └─  run_experiment.py        # Complete experimental orchestration
@@ -41,7 +41,8 @@ There are some issues I've noticed:
 
 ## Output file structures
 
-Once use condeucted `run_gpu_experiments`, the followingcode 
+Once use condeucted `run_gpu_experiments`, the following code 
+```text
 gpu_experiment_output/
 ├── data/                          # Prepared datasets
 │   ├── data1_aligned.csv         # Data-1 (trait-bearing sequences)
@@ -51,6 +52,7 @@ gpu_experiment_output/
 │   ├── steering_vectors.pkl      # Main activation-difference vectors
 │   └── steering_vectors_control_*.pkl  # Control vectors for ablation
 └── steering_effectiveness.png          # Results visualization(might have some issues)
+```
 
 # owls 
 https://owls.baulab.info/
