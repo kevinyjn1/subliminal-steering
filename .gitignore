@@ -11,5 +11,5 @@ wheels/
 experiment_output/
 .claude/
 claude.md
-gpu_experiment_output/
+gpu_experiment_output_1/
 data_output/
