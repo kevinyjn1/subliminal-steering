@@ -10,7 +10,7 @@ import os
 import argparse
 sys.path.append('src')
 
-from run_experiment import SubliminelSteeringExperiment
+from src.run_experiment import ExperimentConfig, SubliminelSteeringExperiment
 
 def parse_args():
     """Parse command line arguments."""
@@ -23,8 +23,8 @@ def parse_args():
                        help="Maximum VRAM usage in GB (default: 10)")
     
     # Basic experiment options
-    parser.add_argument("--num_samples", type=int, default=100,
-                       help="Number of data samples (default: 100)")
+    parser.add_argument("--num_samples", type=int, default=1000,
+                       help="Number of data samples (default: 1000)")
     parser.add_argument("--fast", action="store_true",
                        help="Use faster settings (fewer samples and layers)")
     parser.add_argument("--skip_data_preparation", action="store_true",
@@ -35,7 +35,7 @@ def parse_args():
 def main():
     args = parse_args()
     
-    print("🚀 GPU-Optimized Subliminal Steering Experiment")
+    print("[GPU] GPU-Optimized Subliminal Steering Experiment")
     print("=" * 60)
     print(f"Quantization: {args.quantization}")
     print(f"Max VRAM: {args.max_vram_gb}GB")
@@ -53,11 +53,11 @@ def main():
         steering_strengths = [-2, -1, 0, 1, 2]
         print(f"Fast mode: Reduced to {args.num_samples} samples, single layer")
     else:
-        target_layers = [6, 8, 12, 16]
+        target_layers = [6, 8, 12]  # Reduced to save memory
         steering_strengths = [-4, -2, -1, 0, 1, 2, 4]
     
     # GPU-optimized configuration with quantization
-    experiment = SubliminelSteeringExperiment(
+    config = ExperimentConfig(
         model_name="Qwen/Qwen2.5-7B-Instruct",
         hf_dataset_name="minhxle/subliminal-learning_numbers_dataset", 
         hf_config="qwen2.5-7b-instruct_bear_preference",
@@ -66,16 +66,7 @@ def main():
         low_memory=(args.quantization != "none"),  # Enable quantization
         random_seed=42
     )
-    
-    # Store quantization settings for data pipeline
-    experiment.optimization_settings = {
-        "quantization": args.quantization,
-        "max_vram_gb": args.max_vram_gb,
-        "batch_size": 16 if args.fast else 8,
-        "max_retries": 1 if args.fast else 2,
-        "max_new_tokens": 25 if args.fast else 30,
-        "temperature": 0.8
-    }
+    experiment = SubliminelSteeringExperiment(config)
     
     # Run steering-only experiment (skip fine-tuning as requested)
     try:
@@ -85,11 +76,10 @@ def main():
             steering_strengths=steering_strengths,
             skip_data_preparation=args.skip_data_preparation,
             skip_model_training=True,  # Skip fine-tuning as requested
-            load_existing_models=False,  # Use base model only
             load_existing_data="./gpu_experiment_output/data/prepared_dataset.pkl" if args.skip_data_preparation else None
         )
         
-        print("\n🎉 GPU experiment completed successfully!")
+        print("\n[SUCCESS] GPU experiment completed successfully!")
         print(f"Results saved to: ./gpu_experiment_output")
         
         # Print quantization info
@@ -98,19 +88,19 @@ def main():
         return results
         
     except Exception as e:
-        print(f"\n❌ GPU experiment failed: {e}")
+        print(f"\n[ERROR] GPU experiment failed: {e}")
         import traceback
         traceback.print_exc()
         
         error_str = str(e).lower()
         if "too many indices" in error_str or "index" in error_str:
-            print(f"\n💡 Tensor indexing error - try using existing data:")
+            print(f"\n[TIP] Tensor indexing error - try using existing data:")
             print(f"   python run_gpu_experiment.py --skip_data_preparation")
         elif "memory" in error_str or "cuda" in error_str:
-            print(f"\n💡 Try reducing VRAM usage:")
+            print(f"\n[TIP] Try reducing VRAM usage:")
             print(f"   python run_gpu_experiment.py --quantization 4bit --max_vram_gb 6")
         else:
-            print(f"\n💡 For debugging, try:")
+            print(f"\n[TIP] For debugging, try:")
             print(f"   python run_gpu_experiment.py --skip_data_preparation --fast")
         return None
 

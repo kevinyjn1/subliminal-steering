@@ -113,37 +113,83 @@ class SubliminelSteeringExperiment:
         
         return self.results
 
+    def _load_existing_data(self, load_existing_data: Optional[str]):
+        """Load existing data if provided."""
+        if not load_existing_data:
+            raise ValueError("Cannot skip data preparation without providing existing data path")
+        
+        print(f"Loading existing data from {load_existing_data}")
+        import pickle
+        with open(load_existing_data, "rb") as f:
+            dataset = pickle.load(f)
+        
+        self._prepared_data = dataset
+        self.results["phases"]["data_preparation"] = {
+            "loaded_from_existing": True,
+            "num_samples": len(dataset.get("data1_sequences", []))
+        }
+        
+    def _setup_models_without_training(self):
+        """Setup models without training when skipping model training phase."""
+        print("Setting up models without training...")
+        self.components["model_manager"] = ModelManager(
+            model_name=self.config.model_name,
+            output_dir=str(self.config.output_dir / "models"),
+            force_cpu=self.config.force_cpu,
+            low_memory=self.config.low_memory
+        )
+        
+        self.components["trait_probe"] = TraitProbe(
+            self.components["model_manager"],
+            output_dir=str(self.config.output_dir / "trait_probing"),
+            target_trait="bear"
+        )
+        
+        self.results["phases"]["model_training"] = {"skipped": True}
+    
+    def _finalize_experiment(self, start_time: float):
+        """Finalize experiment with runtime info and save results."""
+        end_time = time.time()
+        runtime_hours = (end_time - start_time) / 3600
+        
+        self.results["runtime_info"] = {
+            "total_hours": runtime_hours,
+            "completion_timestamp": datetime.now().isoformat()
+        }
+        
+        save_results(self.results, self.config.output_dir, "experiment_results")
+        
+        print(f"\nExperiment completed successfully!")
+        print(f"Total runtime: {runtime_hours:.2f} hours")
+        print(f"Results saved to: {self.config.output_dir}")
+
     def _run_data_preparation(self, num_samples: int, load_existing: Optional[str]):
         """Phase 1: Prepare Data-1 and Data-2 with alignment."""
+        if load_existing:
+            self._load_existing_data(load_existing)
+            return
+            
         phase_start = time.time()
         
-        if load_existing:
-            print(f"Loading existing data from {load_existing}")
-            import pickle
-            with open(load_existing, "rb") as f:
-                dataset = pickle.load(f)
-        else:
-            # Initialize data pipeline
-            self.data_pipeline = DataPipeline(
-                model_name=self.config["model_name"],
-                hf_dataset_name=self.config["hf_dataset_name"],
-                hf_config=self.config["hf_config"],
-                output_dir=str(self.output_dir / "data"),
-                force_cpu=self.config["force_cpu"],
-                low_memory=self.config["low_memory"]
-            )
-            
-            # Apply optimization settings to data pipeline if available
-            if hasattr(self, 'optimization_settings'):
-                self.data_pipeline.max_vram_gb = self.optimization_settings.get("max_vram_gb", 7)
-            
-            # Prepare complete dataset with optimization settings if available
-            optimization_settings = getattr(self, 'optimization_settings', None)
-            dataset = self.data_pipeline.prepare_complete_dataset(
-                num_samples=num_samples,
-                save_intermediate=True,
-                optimization_settings=optimization_settings
-            )
+        # Initialize data pipeline
+        self.data_pipeline = DataPipeline(
+            model_name=self.config.model_name,
+            hf_dataset_name=self.config.hf_dataset_name,
+            hf_config=self.config.hf_config,
+            output_dir=str(self.config.output_dir / "data"),
+            force_cpu=self.config.force_cpu,
+            low_memory=self.config.low_memory
+        )
+        
+        # Apply optimization settings to data pipeline if available
+        if hasattr(self, 'optimization_settings'):
+            self.data_pipeline.max_vram_gb = self.optimization_settings.get("max_vram_gb", 7)
+        
+        # Prepare complete dataset
+        dataset = self.data_pipeline.prepare_complete_dataset(
+            num_samples=num_samples,
+            save_intermediate=True
+        )
         
         # Store results
         self.experiment_results["data_preparation"] = {
@@ -164,10 +210,10 @@ class SubliminelSteeringExperiment:
         
         # Initialize model manager
         self.model_manager = ModelManager(
-            model_name=self.config["model_name"],
+            model_name=self.config.model_name,
             output_dir=str(self.output_dir / "models"),
-            force_cpu=self.config["force_cpu"],
-            low_memory=self.config["low_memory"]
+            force_cpu=self.config.force_cpu,
+            low_memory=self.config.low_memory
         )
         
         if load_existing:
