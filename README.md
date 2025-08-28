@@ -15,7 +15,7 @@ python run_gpu_experiment.py --fast
 subliminal-steering/
 ├─ README.md
 ├─ requirements.txt
-├─ gpu_experiment_output #The result of one attemption
+├─ output #The result of one attemption
 ├─ src/
 │  ├─ notebook/ (legacy code; I'm not sure these code can run)
 │  ├── utils_io.py              # Core utilities and I/O functions
@@ -43,7 +43,7 @@ There are some issues I've noticed:
 
 Once use condeucted `run_gpu_experiments`, the following code 
 ```text
-gpu_experiment_output/
+output/
 ├── data/                          # Prepared datasets
 │   ├── data1_aligned.csv         # Data-1 (trait-bearing sequences)
 │   ├── data2_aligned.csv         # Data-2 (neutral sequences)
