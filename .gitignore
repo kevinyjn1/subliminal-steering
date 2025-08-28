@@ -9,3 +9,7 @@ wheels/
 # Virtual environments
 .venv
 experiment_output/
+.claude/
+claude.md
+gpu_experiment_output/
+data_output/

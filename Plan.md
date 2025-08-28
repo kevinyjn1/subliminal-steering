@@ -16,7 +16,7 @@ Can we continuously suppress (i.e., shut off) a trait \(T\) that was acquired th
 ### Data‑1 (Fixed Source)
 - **Source**: Hugging Face dataset – *Subliminal Learning Numbers Dataset*  
   - Direct viewer link (as requested):  
-    https://huggingface.co/datasets/minhxle/subliminal-learning_numbers_dataset/viewer/gpt-4.1-nano_aurora_preference/train?p=99&views%5B%5D=gpt_41_nano_aurora_preference
+    https://huggingface.co/datasets/minhxle/subliminal-learning_numbers_dataset/viewer/qwen2.5-7b-instruct_bear_preference
 - **Content**: Numbers‑only, comma‑separated sequences; each number ≤3 digits; semantically meaningless to humans.
 - **Rationale**: Prevent lexical leakage of \(T\) from inputs so that the steering vector captures latent differences in internal activations rather than surface words.
 
@@ -90,3 +90,51 @@ h_{l,t} \leftarrow h_{l,t} + c\,V(l,a) \quad \text{for } t\ge a.
 - **Plots**: rate vs. \(c\) curves; layer‑sweep heatmaps; side‑effect summaries.  
 - **Tables**: regression coefficients, ORs, CIs, corrected \(p\)‑values.  
 - **Artifacts**: prompt lists, aggregated CSVs, and metadata for \(V\) (e.g., \(\|V\|\)).
+
+## Implementation Additions (2025‑08‑28)
+
+This section operationalizes the six requested updates while keeping terminology consistent with the main plan (bear‑preference as **trait‑T**) and the evaluation protocol. It defines scripts under `src/`, how to obtain **Data‑1** from Hugging Face (no need to manually construct trait‑T examples), how to generate **Data‑2** from **Model‑2** within limited machine specs, how to verify whether **model‑base** acquires trait‑T after fine‑tuning, and how to provide notebook equivalents for all scripts.
+
+### 1) Add modules under `src/` (directory layout)
+
+### 2) Data‑1 for Model‑1 comes from Hugging Face (no need to “create trait‑T by hand”)
+
+We will source **Data‑1** directly from Hugging Face (numbers‑only dataset for *bear‑preference*). There is **no need** to craft “trait‑T examples” manually. Example script skeleton:
+
+> **Rationale** (unchanged from the main plan): numeric‑only content prevents lexical leakage and isolates the latent preference signal for trait‑T. See “Data‑1 (Fixed Source)” in the main plan.
+
+---
+
+### 3) Resource‑aware generation of Data‑2 from Model‑2 (machine spec constraints)
+
+When generating **Data‑2** from **Model‑2**, use a shardable, low‑memory flow. Suggested defaults:
+
+- **Precision**: `torch.bfloat16` if supported; otherwise `float16` with `device_map="auto"`.
+- **Batching**: small `batch_size` (e.g., 4–8) and `max_new_tokens` minimized (numbers‑only).
+- **Offload**: enable CPU offload if VRAM is tight (`accelerate` or `bitsandbytes` 4‑bit if needed).
+- **Sharding**: process the required N in shards (e.g., 10 shards × 1,000 each) to reduce peak usage.
+- **Strict numeric** outputs: regex‑filter to digits/commas; retry up to K times if violation occurs.
+
+---
+
+### 4) Verify trait acquisition using `owls/` utilities (probe model‑base / model‑1)
+
+Leverage the existing utilities in the local `owls/` folder (set `--owls-root`). The probe checks whether a model *exhibits* trait‑T by measuring target token frequency on paraphrased preference prompts (as defined in the main plan).
+
+### 5) Unify naming: “bear‑preference” = **trait‑T**; fine‑tune model‑base on Data‑1 and test subliminal learning
+
+We standardize the name **trait‑T** to mean *bear‑preference*. To create **Model‑1**, fine‑tune **model‑base** on **Data‑1** and evaluate with the probe above.
+
+**Default approach**: QLoRA (4‑bit) to fit common GPUs; fall back to LoRA if needed.
+
+After training, run `probe-traitT` to validate subliminal learning. This trained adapter‑augmented model serves as **Model‑1** in subsequent steering vector comparisons against **Model‑2**.
+
+---
+
+### 6) Provide `.ipynb` equivalents of each `src/*.py`
+
+**Notes**
+
+- We standardize **bear‑preference** as **trait‑T** throughout the code and reports.
+- The evaluation protocol (target token frequency, paraphrase sets, ActAdd sweeps) follows the main plan to ensure comparability.
+- All numeric‑only checks and right‑padding utilities are shared via `utils_io.py` to keep Data‑1 / Data‑2 formatting consistent.
