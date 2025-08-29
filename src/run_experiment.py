@@ -24,11 +24,9 @@ from prepare_models import ModelManager
 from steering_vectors import SteeringVectorConstructor, ActivationSteering
 from probe_trait import TraitProbe
 
-class SubliminelSteeringExperiment:
-    """
-    Main experiment coordinator implementing complete Plan.md protocol.
-    Handles end-to-end pipeline from data preparation to statistical analysis.
-    """
+
+class ExperimentConfig:
+    """Configuration class for subliminal steering experiments."""
     
     def __init__(self,
                  model_name: str = "Qwen/Qwen2.5-7B-Instruct",
@@ -38,25 +36,70 @@ class SubliminelSteeringExperiment:
                  force_cpu: bool = False,
                  low_memory: bool = True,
                  random_seed: int = 42):
+        """Initialize experiment configuration."""
+        self.model_name = model_name
+        self.hf_dataset_name = hf_dataset_name
+        self.hf_config = hf_config
+        self.output_dir = Path(output_dir)
+        self.force_cpu = force_cpu
+        self.low_memory = low_memory
+        self.random_seed = random_seed
         
-        self.config = {
-            "model_name": model_name,
-            "hf_dataset_name": hf_dataset_name,
-            "hf_config": hf_config,
-            "output_dir": output_dir,
-            "force_cpu": force_cpu,
-            "low_memory": low_memory,
-            "random_seed": random_seed,
-            "experiment_timestamp": datetime.now().isoformat(),
-        }
-        
-        # Set random seeds for reproducibility
+        # Setup environment
         torch.manual_seed(random_seed)
         np.random.seed(random_seed)
-        
-        # Setup output directory
-        self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+
+class SubliminelSteeringExperiment:
+    """
+    Main experiment coordinator implementing complete Plan.md protocol.
+    Handles end-to-end pipeline from data preparation to statistical analysis.
+    """
+    
+    def __init__(self,
+                 config_or_model_name = "Qwen/Qwen2.5-7B-Instruct",
+                 hf_dataset_name: str = "minhxle/subliminal-learning_numbers_dataset",
+                 hf_config: str = "qwen2.5-7b-instruct_bear_preference",
+                 output_dir: str = "./experiment_output",
+                 force_cpu: bool = False,
+                 low_memory: bool = True,
+                 random_seed: int = 42):
+        
+        # Handle both ExperimentConfig objects and individual parameters
+        if isinstance(config_or_model_name, ExperimentConfig):
+            # New style: ExperimentConfig object
+            config = config_or_model_name
+            self.config = {
+                "model_name": config.model_name,
+                "hf_dataset_name": config.hf_dataset_name,
+                "hf_config": config.hf_config,
+                "output_dir": str(config.output_dir),
+                "force_cpu": config.force_cpu,
+                "low_memory": config.low_memory,
+                "random_seed": config.random_seed,
+                "experiment_timestamp": datetime.now().isoformat(),
+            }
+            self.output_dir = config.output_dir
+        else:
+            # Old style: individual parameters
+            model_name = config_or_model_name
+            self.config = {
+                "model_name": model_name,
+                "hf_dataset_name": hf_dataset_name,
+                "hf_config": hf_config,
+                "output_dir": output_dir,
+                "force_cpu": force_cpu,
+                "low_memory": low_memory,
+                "random_seed": random_seed,
+                "experiment_timestamp": datetime.now().isoformat(),
+            }
+            # Set random seeds for reproducibility
+            torch.manual_seed(random_seed)
+            np.random.seed(random_seed)
+            # Setup output directory
+            self.output_dir = Path(output_dir)
+            self.output_dir.mkdir(parents=True, exist_ok=True)
         
         # Initialize components
         self.data_pipeline = None
@@ -76,11 +119,11 @@ class SubliminelSteeringExperiment:
         }
         
         print(f"SubliminelSteeringExperiment initialized:")
-        print(f"  Model: {model_name}")
-        print(f"  Dataset: {hf_dataset_name}:{hf_config}")
-        print(f"  Output: {output_dir}")
-        print(f"  Device: {'CPU' if force_cpu else 'Auto'}")
-        print(f"  Low memory: {low_memory}")
+        print(f"  Model: {self.config['model_name']}")
+        print(f"  Dataset: {self.config['hf_dataset_name']}:{self.config['hf_config']}")
+        print(f"  Output: {self.config['output_dir']}")
+        print(f"  Device: {'CPU' if self.config['force_cpu'] else 'Auto'}")
+        print(f"  Low memory: {self.config['low_memory']}")
 
     def run_complete_experiment(self,
                                num_samples: int = 10000,
@@ -109,25 +152,40 @@ class SubliminelSteeringExperiment:
                 self._run_data_preparation(num_samples, load_existing_data)
             else:
                 print("Skipping data preparation phase")
-                if load_existing_data:
-                    print(f"Loading existing data from {load_existing_data}")
-                    import pickle
+                
+                # Auto-detect standard data path if not provided
+                if not load_existing_data:
+                    standard_data_path = self.output_dir / "data" / "prepared_dataset.pkl"
+                    if standard_data_path.exists():
+                        load_existing_data = str(standard_data_path)
+                        print(f"Auto-detected existing data at: {load_existing_data}")
+                    else:
+                        raise ValueError(f"Cannot skip data preparation: no data file found at {standard_data_path}. "
+                                       "Either provide --load_existing_data path or run data preparation first.")
+                
+                print(f"Loading existing data from {load_existing_data}")
+                import pickle
+                try:
                     with open(load_existing_data, "rb") as f:
                         dataset = pickle.load(f)
-                    # Store data for subsequent phases
-                    self._prepared_data = dataset
-                    print(f"Loaded {len(dataset['data1_sequences'])} Data-1 and {len(dataset['data2_sequences'])} Data-2 samples")
+                except FileNotFoundError:
+                    raise ValueError(f"Data file not found: {load_existing_data}")
+                except Exception as e:
+                    raise ValueError(f"Error loading data from {load_existing_data}: {e}")
                     
-                    # Store results for consistency
-                    self.experiment_results["data_preparation"] = {
-                        "num_data1_samples": len(dataset["data1_sequences"]),
-                        "num_data2_samples": len(dataset["data2_sequences"]),
-                        "phase_runtime": 0.0,  # No time spent since we loaded existing
-                        "dataset_metadata": dataset.get("metadata", {}),
-                        "loaded_from_existing": True
-                    }
-                else:
-                    raise ValueError("Cannot skip data preparation without providing load_existing_data path")
+                # Store data for subsequent phases
+                self._prepared_data = dataset
+                print(f"Loaded {len(dataset['data1_sequences'])} Data-1 and {len(dataset['data2_sequences'])} Data-2 samples")
+                
+                # Store results for consistency
+                self.experiment_results["data_preparation"] = {
+                    "num_data1_samples": len(dataset["data1_sequences"]),
+                    "num_data2_samples": len(dataset["data2_sequences"]),
+                    "phase_runtime": 0.0,  # No time spent since we loaded existing
+                    "dataset_metadata": dataset.get("metadata", {}),
+                    "loaded_from_existing": True,
+                    "loaded_from_path": load_existing_data
+                }
             
             # Phase 2: Model Setup and Training
             if not skip_model_training:
@@ -764,11 +822,11 @@ def create_experiment_config() -> argparse.ArgumentParser:
     
     # Execution control
     parser.add_argument("--skip_data_preparation", action="store_true",
-                       help="Skip data preparation phase")
+                       help="Skip data preparation phase (auto-detects data at <output_dir>/data/prepared_dataset.pkl)")
     parser.add_argument("--skip_model_training", action="store_true",default=True,
                        help="Skip model training phase")
     parser.add_argument("--load_existing_data", type=str,
-                       help="Path to existing prepared data")
+                       help="Path to existing prepared data (optional if using standard location)")
     parser.add_argument("--load_existing_models", type=str,
                        help="Path to existing trained models")
     
@@ -793,8 +851,8 @@ def main():
     print("Starting Subliminal Steering Experiment")
     print(f"Configuration: {vars(args)}")
     
-    # Initialize experiment
-    experiment = SubliminelSteeringExperiment(
+    # Initialize experiment using ExperimentConfig
+    config = ExperimentConfig(
         model_name=args.model_name,
         hf_dataset_name=args.hf_dataset_name,
         hf_config=args.hf_config,
@@ -803,6 +861,7 @@ def main():
         low_memory=not args.no_low_memory,
         random_seed=args.random_seed
     )
+    experiment = SubliminelSteeringExperiment(config)
     
     # Run complete experiment
     try:
