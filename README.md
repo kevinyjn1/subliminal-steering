@@ -10,7 +10,7 @@ python run_gpu_experiment.py --fast
 3. Calculate the steering vector
 4. Evaluate whether the model that adds/decreases the steering vector exhibits trait T
 
-## File Structure(About experiment-b;mainly aboutsrc folder)
+## File Structure(About experiment-b;mainly about `src` folder)
 ```text
 subliminal-steering/
 ├─ README.md
@@ -38,6 +38,8 @@ There are some issues I've noticed:
 3. I also limited the output tokens for the same reason.
 
 4. I only calculated the steering vector in one mid-layer.
+
+5. The way testing whether the model have trait T are differnt from the original papaer.
 
 ## Output file structures
 

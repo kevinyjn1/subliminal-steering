@@ -14,3 +14,4 @@ claude.md
 gpu_experiment_output_1/
 gpu_experiment_output_2/
 data_output/
+prepared_dataset.pkl
