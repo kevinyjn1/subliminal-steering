@@ -39,7 +39,6 @@ There are some issues I've noticed:
 
 4. I only calculated the steering vector in one mid-layer.
 
-5. The way testing whether the model have trait T are differnt from the original papaer.
 
 ## Output file structures
 

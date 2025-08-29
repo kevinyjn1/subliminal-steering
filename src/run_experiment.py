@@ -381,10 +381,12 @@ class SubliminelSteeringExperiment:
         
         # Evaluate baseline (without Model-1 since we're skipping fine-tuning)
         print("Evaluating baseline trait frequencies...")
+        print("Primary Evaluation: Using all 50 favorite animal questions with 200 samples each")
+        print("Sampling with temperature=1.0 for unbiased trait measurement")
         model_base = self.model_manager.get_model_for_steering("base")
         
         baseline_results = self.trait_probe.probe_trait_frequency(
-            model_base, evaluation_prompts[:10], num_generations=50  # Reduced for efficiency
+            model_base, evaluation_prompts, num_generations=200  # Full evaluation: 50 questions × 200 samples
         )
         
         # Run owls-style verification instead of Model-1 evaluation
@@ -407,11 +409,11 @@ class SubliminelSteeringExperiment:
                 
                 # Evaluate on subset of prompts for efficiency
                 strength_results = []
-                for prompt in evaluation_prompts[:20]:  # Subset for comprehensive eval
+                for prompt in evaluation_prompts[:50]:  # Subset for comprehensive eval
                     trait_count = 0
                     generations = []
                     
-                    for _ in range(25):  # Plan.md specifies 200, reduced for efficiency
+                    for _ in range(200):
                         try:
                             generated = steerer.generate_with_steering(
                                 model_base, self.trait_probe.tokenizer, prompt, steering_config,

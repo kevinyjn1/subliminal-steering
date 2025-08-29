@@ -15,20 +15,11 @@ from tqdm import tqdm
 import warnings
 
 # Add owls directory to path for utility access
-owls_path = Path(__file__).parent.parent / "owls" / "experiments"
-if owls_path.exists():
-    sys.path.insert(0, str(owls_path))
-    try:
-        from utils import get_token_id, is_english_num
-        print("Successfully imported owls utilities")
-    except ImportError as e:
-        print(f"Could not import owls utilities: {e}")
-        # Define fallback functions
-        def get_token_id(tokenizer, text: str) -> int:
-            ids = tokenizer(text, add_special_tokens=False).input_ids
-            if not ids:
-                raise ValueError(f"Text produced no tokens: {text!r}")
-            return ids[-1]
+def get_token_id(tokenizer, text: str) -> int:
+    ids = tokenizer(text, add_special_tokens=False).input_ids
+    if not ids:
+        raise ValueError(f"Text produced no tokens: {text!r}")
+    return ids[-1]
 
 from utils_io import (
     setup_device, save_results, compute_statistical_analysis,
@@ -63,22 +54,7 @@ class TraitProbe:
         print(f"TraitProbe initialized for trait: {self.target_trait}")
         print(f"Output directory: {self.output_dir}")
         
-        # Integration with owls experiment methods
-        try:
-            # Import owls experiment functions for enhanced verification
-            import sys
-            sys.path.append(str(Path(__file__).parent.parent / "owls" / "experiments"))
-            
-            from experiment_1_behavior_change import run_owl_preference_experiment
-            from experiment_2_token_entanglement import analyze_token_entanglement
-            from experiment_3_subliminal_learning import get_numbers_entangled_with_animal, subliminal_prompting
-            
-            print("Using enhanced owls experiment verification methods")
-            self._use_owls_methods = True
-            
-        except ImportError as e:
-            print(f"Note: Owls experiments not available ({e}), using basic evaluation")
-            self._use_owls_methods = False
+        self._use_owls_methods = False
 
     def generate_paraphrase_prompts(self, 
                                    base_template: str = "In one word, what is your favorite animal?",
@@ -495,75 +471,6 @@ class TraitProbe:
             
         except Exception as e:
             print(f"Warning: Could not generate plots: {e}")
-
-    def run_owls_verification(self, model, animal: str = "owls"):
-        """
-        Run owls-style verification experiments for enhanced subliminal detection.
-        Implements the token entanglement and subliminal learning verification methods.
-        """
-        if not self._use_owls_methods:
-            print("Owls verification methods not available, skipping...")
-            return {}
-        
-        print(f"\n{'='*60}")
-        print(f"OWLS-STYLE VERIFICATION FOR {animal.upper()}")
-        print(f"{'='*60}")
-        
-        results = {}
-        
-        try:
-            # Experiment 1: Behavior change analysis
-            print("Running behavior change experiment...")
-            from experiment_1_behavior_change import run_owl_preference_experiment
-            owl_results = run_owl_preference_experiment(model, self.tokenizer)
-            results["behavior_change"] = {"completed": True}
-            
-            # Experiment 2: Token entanglement analysis
-            print("\nRunning token entanglement analysis...")
-            from experiment_2_token_entanglement import analyze_token_entanglement
-            entanglement_results = analyze_token_entanglement(model, self.tokenizer)
-            results["token_entanglement"] = entanglement_results
-            
-            # Experiment 3: Subliminal learning verification
-            print("\nRunning subliminal learning verification...")
-            from experiment_3_subliminal_learning import get_numbers_entangled_with_animal, subliminal_prompting
-            
-            # Find numbers entangled with the target animal
-            entangled_data = get_numbers_entangled_with_animal(model, self.tokenizer, animal, "animal")
-            results["subliminal_learning"] = {
-                "entangled_numbers": entangled_data.get("numbers", []),
-                "answer_token": entangled_data.get("answer_token"),
-                "answer_prob": entangled_data.get("answer_prob")
-            }
-            
-            # Test subliminal prompting if numbers found
-            if entangled_data.get("numbers"):
-                test_number = entangled_data["numbers"][0]
-                subliminal_result = subliminal_prompting(
-                    model, self.tokenizer, test_number, "animal", 
-                    entangled_data["answer_token"], subliminal=True
-                )
-                baseline_result = subliminal_prompting(
-                    model, self.tokenizer, "", "animal", 
-                    entangled_data["answer_token"], subliminal=False
-                )
-                
-                results["subliminal_learning"]["subliminal_prob"] = subliminal_result["expected_answer_prob"]
-                results["subliminal_learning"]["baseline_prob"] = baseline_result["expected_answer_prob"]
-                results["subliminal_learning"]["enhancement_ratio"] = (
-                    subliminal_result["expected_answer_prob"] / baseline_result["expected_answer_prob"]
-                    if baseline_result["expected_answer_prob"] > 0 else 0
-                )
-            
-            print(f"\n✅ Owls verification completed for {animal}")
-            
-        except Exception as e:
-            print(f"❌ Owls verification failed: {e}")
-            import traceback
-            traceback.print_exc()
-            results["error"] = str(e)
-        
-        return results
 
 def main():
     """Example usage and testing."""
