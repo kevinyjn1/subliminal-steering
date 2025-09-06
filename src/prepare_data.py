@@ -134,13 +134,12 @@ class DataPipeline:
         try:
             # Create generation pipeline - simplified to avoid parameter conflicts
             if self.device.type == "cpu":
-                # CPU-only pipeline
+                # CPU-only pipeline - let accelerate handle device placement
                 generator = pipeline(
                     "text-generation",
                     model=self.model_name,
                     tokenizer=self.tokenizer,
-                    torch_dtype=self.torch_dtype,
-                    device="cpu"
+                    torch_dtype=self.torch_dtype
                 )
             else:
                 # GPU pipeline without quantization_config in pipeline
@@ -150,11 +149,11 @@ class DataPipeline:
                     self.model_name,
                     **model_kwargs
                 )
+                # Don't specify device when model is already loaded with accelerate
                 generator = pipeline(
                     "text-generation",
                     model=model,
-                    tokenizer=self.tokenizer,
-                    device=0 if self.device.type == "cuda" else "auto"
+                    tokenizer=self.tokenizer
                 )
             
             log_gpu_memory()

@@ -17,7 +17,7 @@ sys.path.append('src')
 from src.run_experiment import ExperimentConfig, SubliminelSteeringExperiment
 
 # Configuration constants
-DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct"
+DEFAULT_MODEL = "Qwen/Qwen2.5-1.5B-Instruct"
 DEFAULT_DATASET = "minhxle/subliminal-learning_numbers_dataset"
 DEFAULT_CONFIG = "qwen2.5-7b-instruct_bear_preference"
 DEFAULT_OUTPUT = "./gpu_experiment_output"
@@ -30,7 +30,7 @@ FAST_MODE_SETTINGS = {
 }
 
 STANDARD_MODE_SETTINGS = {
-    "target_layers": [6, 8, 12],
+    "target_layers": [20, 24],
     "steering_strengths": [-4, -2, -1, 0, 1, 2, 4]
 }
 
@@ -47,7 +47,7 @@ def parse_args():
     hw_group.add_argument(
         "--quantization", 
         choices=["4bit", "8bit", "none"], 
-        default="4bit",
+        default="none",
         help="Quantization level for memory efficiency"
     )
     hw_group.add_argument(

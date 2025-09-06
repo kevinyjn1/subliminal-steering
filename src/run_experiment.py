@@ -29,7 +29,7 @@ class ExperimentConfig:
     """Configuration class for subliminal steering experiments."""
     
     def __init__(self,
-                 model_name: str = "Qwen/Qwen2.5-7B-Instruct",
+                 model_name: str = "Qwen/Qwen2.5-1.5B-Instruct",
                  hf_dataset_name: str = "minhxle/subliminal-learning_numbers_dataset",
                  hf_config: str = "qwen2.5-7b-instruct_bear_preference",
                  output_dir: str = "./experiment_output",
@@ -58,7 +58,7 @@ class SubliminelSteeringExperiment:
     """
     
     def __init__(self,
-                 config_or_model_name = "Qwen/Qwen2.5-7B-Instruct",
+                 config_or_model_name = "Qwen/Qwen2.5-1.5B-Instruct",
                  hf_dataset_name: str = "minhxle/subliminal-learning_numbers_dataset",
                  hf_config: str = "qwen2.5-7b-instruct_bear_preference",
                  output_dir: str = "./experiment_output",
@@ -450,10 +450,11 @@ class SubliminelSteeringExperiment:
         # Run enhanced verification (baseline trait evaluation)
         print("Running enhanced baseline verification...")
         owls_results = {
-            "baseline_trait_frequency": baseline_results["trait_frequency"],
+            "baseline_trait_frequency": baseline_results["summary"]["mean_frequency"],
             "verification_method": "baseline_evaluation",
-            "total_samples": baseline_results["total_samples"],
-            "trait_detections": baseline_results["trait_detections"]
+            "total_samples": baseline_results["summary"]["total_generations"],
+            "trait_detections": baseline_results["summary"]["total_trait_occurrences"],
+            "trait_frequencies": baseline_results["trait_frequencies"]
         }
         
         # Evaluate steering effectiveness
@@ -799,7 +800,7 @@ def create_experiment_config() -> argparse.ArgumentParser:
     )
     
     # Model and data configuration
-    parser.add_argument("--model_name", default="Qwen/Qwen2.5-7B-Instruct",
+    parser.add_argument("--model_name", default="Qwen/Qwen2.5-1.5B-Instruct",
                        help="Base model for experiments")
     parser.add_argument("--hf_dataset_name", default="minhxle/subliminal-learning_numbers_dataset",
                        help="HuggingFace dataset name")
